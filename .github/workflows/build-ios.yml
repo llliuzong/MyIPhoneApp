@@ -59,8 +59,10 @@ jobs:
           bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")
           platform=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleSupportedPlatforms:0' "$app/Info.plist")
           executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Info.plist")
+          file_sharing=$(/usr/libexec/PlistBuddy -c 'Print :UIFileSharingEnabled' "$app/Info.plist")
           [[ "$bundle_id" == 'com.example.myiphoneapp' ]] || fail "Unexpected bundle ID: $bundle_id"
           [[ "$platform" == 'iPhoneOS' ]] || fail "Unexpected platform: $platform"
+          [[ "$file_sharing" == 'true' ]] || fail 'USB file sharing is disabled'
           [[ -f "$app/$executable" ]] || fail 'Missing app executable'
           xcrun lipo "$app/$executable" -verify_arch arm64 || fail 'App executable is missing arm64'
 

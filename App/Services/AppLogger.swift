@@ -1,5 +1,6 @@
-import Foundation
 import Combine
+import Foundation
+import OSLog
 
 @MainActor
 final class AppLogger: ObservableObject {
@@ -8,38 +9,32 @@ final class AppLogger: ObservableObject {
         case error = "ERROR"
     }
 
-    struct Entry: Identifiable {
-        let id = UUID()
-        let date: Date
-        let level: Level
-        let message: String
-    }
+    private let capacity = 200
+    private let formatter = ISO8601DateFormatter()
+    private let fallback = Logger(subsystem: "com.example.myiphoneapp", category: "file-log")
+    private var lines: [String] = []
 
-    @Published private(set) var entries: [Entry] = []
-    private let capacity = 100
-
-    let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "未知"
-    let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "未知"
+    private let fileURL = URL.documentsDirectory.appendingPathComponent("commute.log")
+    private let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+    private let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
 
     init() {
-        record("应用启动")
-        if version == "未知" || build == "未知" {
-            record("无法读取应用版本或构建编号", level: .error)
-        }
+        record("应用冷启动，开始新日志")
     }
 
     func record(_ message: String, level: Level = .info) {
-        entries.append(Entry(date: .now, level: level, message: message))
-        if entries.count > capacity {
-            entries.removeFirst(entries.count - capacity)
+        lines.append("\(formatter.string(from: .now)) [\(level.rawValue)] \(message)")
+        if lines.count > capacity {
+            lines.removeFirst(lines.count - capacity)
         }
-    }
-
-    var exportText: String {
-        let formatter = ISO8601DateFormatter()
-        let lines = entries.map { entry in
-            "\(formatter.string(from: entry.date)) [\(entry.level.rawValue)] \(entry.message)"
+        let header = "MyIPhoneApp \(version) (Build \(build))"
+        let snapshot = ([header] + lines).joined(separator: "\n") + "\n"
+        do {
+            // Never read or append to a previous process's log.
+            try Data(snapshot.utf8).write(to: fileURL, options: .atomic)
+        } catch {
+            let failure = error as NSError
+            fallback.error("Failed to write commute.log: \(failure.domain, privacy: .public) \(failure.code, privacy: .public)")
         }
-        return (["MyIPhoneApp \(version) (Build \(build))"] + lines).joined(separator: "\n")
     }
 }

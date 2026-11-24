@@ -1,11 +1,13 @@
 # MyIPhoneApp
 
-这是一个原生 SwiftUI 计数器，支持 iOS 16.0 及以上的 iPhone。Windows 上用 VS Code 编辑源代码，GitHub Actions 的标准 macOS Runner 使用 Xcode 编译，Windows 上再用 Sideloadly 签名并安装到自己的 iPhone。
+这是一个原生 SwiftUI 通勤工具，支持 iOS 16.0 及以上的 iPhone。Windows 上用 VS Code 编辑源代码，GitHub Actions 的标准 macOS Runner 使用 Xcode 编译，Windows 上再用 Sideloadly 签名并安装到自己的 iPhone。
 
 - 项目、Target、Scheme：`MyIPhoneApp`
 - 构建用 Bundle ID：`com.example.myiphoneapp`
-- 版本：`1.0.0`。CI 用 Actions 的运行编号作为 Build 编号。
-- 日志保存最近 100 条应用事件，关闭进程后清空。点「复制日志」可复制带时间戳、级别和版本号的文本。
+- 版本：`1.1.0`。CI 用 Actions 的运行编号作为 Build 编号。
+- 首页只有「上班」和「回家」。首次点按钮时填写目的地，以后长按对应按钮可以编辑。
+- 地点请填写 [高德坐标拾取器](https://lbs.amap.com/tools/picker) 获得的 GCJ-02 经纬度。地点存在手机设置中，不会上传到 GitHub，也不会写入日志。
+- 两个按钮分别打开 [高德 iOS 驾车导航](https://lbs.amap.com/api/amap-mobile/guide/ios/navi)，由高德使用手机当前位置作为起点。
 
 ## 1. 首次提交并触发构建
 
@@ -68,20 +70,19 @@ Get-Item .\downloads\MyIPhoneApp-unsigned.ipa
 3. 在 Sideloadly 选择 `MyIPhoneApp-unsigned.ipa`，选中你的 iPhone，用个人 Apple 账号点击 **Start**。在 Sideloadly 或系统验证界面完成登录和双重认证。Apple 账号凭据不需要交给 GitHub Actions，也不需要发到聊天中。
 4. 出现开发者模式提示时，在 iPhone 打开「设置 → 隐私与安全性 → 开发者模式」，打开开关。按提示重启并再次确认。
 5. 如提示不受信任的开发者，在「设置 → 通用 → VPN 与设备管理」中选对应开发者并按提示信任。
-6. 回主屏幕打开 App。看见计数器后按下面的清单验收。
+6. 回主屏幕打开「通勤」，按下面的清单验收。
 
-免费 Apple 账号的开发配置文件通常有效 7 天，到期需要重新签名或刷新。免费账号还受 App 数量、App ID 和可用权限限制。更新时使用同一 Apple 账号及同一有效 Bundle ID，正常覆盖安装通常可保留 App 数据，但不能保证。保存重要数据时先备份，保留旧 App 直到确认覆盖安装结果。这个示例的计数和日志仅保存在内存中。参见 [Apple 免费开发账号说明](https://developer.apple.com/help/account/basics/about-your-developer-account/) 和 [Sideloadly FAQ](https://sideloadly.io/faq)。
+免费 Apple 账号的开发配置文件通常有效 7 天，到期需要重新签名或刷新。免费账号还受 App 数量、App ID 和可用权限限制。更新时使用同一 Apple 账号及同一有效 Bundle ID，正常覆盖安装通常可保留地点设置。参见 [Apple 免费开发账号说明](https://developer.apple.com/help/account/basics/about-your-developer-account/) 和 [Sideloadly FAQ](https://sideloadly.io/faq)。
 
 ## 4. 真机验收
 
-- [ ] iPhone 主屏幕出现 App 图标，App 能打开。
-- [ ] 初次打开显示 0，连续按两次「点击 +1」后显示 2，点「重置」后回到 0。
-- [ ] 能看到应用版本和 Build 编号。
-- [ ] 调试日志显示应用启动、加一及重置事件。
-- [ ] 点「复制日志」后能粘贴到备忘录，能看到日期、时间、级别和事件。
-- [ ] 在浅色和深色模式下文字都可读。
+- [ ] 初次点「上班」和「回家」能分别设置公司和家。长按已配置的按钮可以修改对应地点。
+- [ ] 点「上班」打开高德，确认起点为当前位置、终点为公司。
+- [ ] 点「回家」打开高德，确认起点为当前位置、终点为家。
+- [ ] 连 USB 导出 `commute.log`，确认有版本、启动、点击及跳转结果，日志没有坐标。
+- [ ] 结束 App 进程并重新打开后，地点仍在。再导出日志，确认上一进程的按钮事件已清除。
 
-Actions 成功只确认编译和打包。Sideloadly 是否能签名、设备是否能安装，以及按钮是否正常，都以实际 iPhone 验收为准。
+Actions 确认编译、打包和文件共享配置。签名、跳转及实际 USB 导出以 iPhone 验收为准。
 
 ## 5. 日常开发和排错
 
@@ -91,12 +92,27 @@ Actions 成功只确认编译和打包。Sideloadly 是否能签名、设备是�
 git status --short
 git diff
 git add -- App/ContentView.swift
-git commit -m "Update counter screen"
+git commit -m "Update commute screen"
 git push
 gh run list --workflow build-ios.yml --branch main --limit 5
 ```
 
-如果遇到问题，在 iPhone 复现后复制日志，并记录复现步骤、iOS 版本和 App Build 编号。修复后重新构建、覆盖安装，再执行相关的真机检查。
+如果遇到问题，在 iPhone 复现后先导出日志，再重新打开 App。修复后重新构建、覆盖安装，再执行相关的真机检查。
+
+### 通过 USB 取日志
+
+App 每次冷启动会重置 `Documents/commute.log`。当前进程的最近 200 条事件以原子写入方式覆盖文件。从高德切回 App 时会保留当前进程的日志。文件保存时间、版本和场景，例如「点击上班」「系统接受高德导航跳转」或「系统无法打开高德导航」。iOS 接受链接不代表高德成功开始了语音导航，高德内部的日志不在这个文件中。
+
+在 Windows 上连接并解锁 iPhone，首次连接时按提示信任电脑。使用 iTunes 的 Apple Mobile Device Service。采集工具在项目忽略的虚拟环境里，首次安装一次即可。
+
+```powershell
+python -m venv .\downloads\device-tools
+& .\downloads\device-tools\Scripts\python.exe -m pip install pymobiledevice3==11.63.1
+powershell -NoProfile -File .\scripts\Get-CommuteLog.ps1
+Get-Content -Encoding UTF8 .\downloads\commute.log
+```
+
+如果签名工具修改了 Bundle ID，用脚本的 `-BundleId` 参数传入安装时实际使用的 ID。也可在 [iTunes 的文件共享](https://support.apple.com/guide/itunes/transfer-files-itns32636/windows) 中选择「通勤」，把 `commute.log` 保存到电脑。
 
 | 现象 | 如何处理 |
 |---|---|

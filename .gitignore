@@ -1,12 +1,14 @@
 .DS_Store
 Thumbs.db
 *.xcodeproj/
+/AppInfo.plist
 *.xcworkspace/
 xcuserdata/
 DerivedData/
 build/
 dist/
 downloads/
+*.log
 *.ipa
 *.xcarchive/
 .env

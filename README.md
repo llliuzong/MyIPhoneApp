@@ -1,10 +1,10 @@
-# MyIPhoneApp
+# LongWay
 
 这是一个原生 SwiftUI 通勤和待办工具，支持 iOS 16.0 及以上的 iPhone。Windows 上用 VS Code 编辑源代码，GitHub Actions 的标准 macOS Runner 使用 Xcode 编译，Windows 上再用 Sideloadly 签名并安装到自己的 iPhone。
 
 - 项目、Target、Scheme：`MyIPhoneApp`
 - 构建用 Bundle ID：`com.example.myiphoneapp`
-- 版本：`1.2.0`。CI 用 Actions 的运行编号作为 Build 编号。
+- 版本：`1.2.1`。CI 用 Actions 的运行编号作为 Build 编号。
 - 「通勤」页有「上班」和「回家」两个按钮。首次点按钮时填写目的地，以后长按对应按钮可以编辑。
 - 地点请填写 [高德坐标拾取器](https://lbs.amap.com/tools/picker) 获得的 GCJ-02 经纬度。地点存在手机设置中，不会上传到 GitHub，也不会写入日志。
 - 两个按钮分别打开 [高德 iOS 驾车导航](https://lbs.amap.com/api/amap-mobile/guide/ios/navi)，由高德使用手机当前位置作为起点。
@@ -84,7 +84,7 @@ Get-Item .\downloads\MyIPhoneApp-unsigned.ipa
 3. 在 Sideloadly 选择 `MyIPhoneApp-unsigned.ipa`，选中你的 iPhone，用个人 Apple 账号点击 **Start**。在 Sideloadly 或系统验证界面完成登录和双重认证。Apple 账号凭据不需要交给 GitHub Actions，也不需要发到聊天中。
 4. 出现开发者模式提示时，在 iPhone 打开「设置 → 隐私与安全性 → 开发者模式」，打开开关。按提示重启并再次确认。
 5. 如提示不受信任的开发者，在「设置 → 通用 → VPN 与设备管理」中选对应开发者并按提示信任。
-6. 回主屏幕打开「通勤」，按下面的清单验收。
+6. 回主屏幕打开 LongWay，按下面的清单验收。
 
 免费 Apple 账号的开发配置文件通常有效 7 天，到期需要重新签名或刷新。免费账号还受 App 数量、App ID 和可用权限限制。更新时使用同一 Apple 账号及同一有效 Bundle ID，正常覆盖安装通常可保留地点设置。参见 [Apple 免费开发账号说明](https://developer.apple.com/help/account/basics/about-your-developer-account/) 和 [Sideloadly FAQ](https://sideloadly.io/faq)。
 
@@ -126,7 +126,7 @@ powershell -NoProfile -File .\scripts\Get-CommuteLog.ps1
 Get-Content -Encoding UTF8 .\downloads\commute.log
 ```
 
-如果签名工具修改了 Bundle ID，用脚本的 `-BundleId` 参数传入安装时实际使用的 ID。也可在 [iTunes 的文件共享](https://support.apple.com/guide/itunes/transfer-files-itns32636/windows) 中选择「通勤」，把 `commute.log` 保存到电脑。
+如果签名工具修改了 Bundle ID，用脚本的 `-BundleId` 参数传入安装时实际使用的 ID。也可在 [iTunes 的文件共享](https://support.apple.com/guide/itunes/transfer-files-itns32636/windows) 中选择 LongWay，把 `commute.log` 保存到电脑。
 
 | 现象 | 如何处理 |
 |---|---|

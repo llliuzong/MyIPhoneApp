@@ -27,7 +27,7 @@ final class AppLogger: ObservableObject {
         if lines.count > capacity {
             lines.removeFirst(lines.count - capacity)
         }
-        let header = "MyIPhoneApp \(version) (Build \(build))"
+        let header = "LongWay \(version) (Build \(build))"
         let snapshot = ([header] + lines).joined(separator: "\n") + "\n"
         do {
             // Never read or append to a previous process's log.

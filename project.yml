@@ -11,6 +11,7 @@ targets:
     info:
       path: AppInfo.plist
       properties:
+        CFBundleDisplayName: LongWay
         UIFileSharingEnabled: true
         UIBackgroundModes:
           - location
@@ -19,9 +20,9 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.myiphoneapp
         GENERATE_INFOPLIST_FILE: 'YES'
-        INFOPLIST_KEY_CFBundleDisplayName: 通勤
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_UILaunchScreen_Generation: 'YES'
-        MARKETING_VERSION: '1.2.0'
+        MARKETING_VERSION: '1.2.1'
         CURRENT_PROJECT_VERSION: '1'
         SWIFT_VERSION: '5.0'
         TARGETED_DEVICE_FAMILY: '1'

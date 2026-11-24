@@ -62,7 +62,7 @@ jobs:
           [[ "$bundle_id" == 'com.example.myiphoneapp' ]] || fail "Unexpected bundle ID: $bundle_id"
           [[ "$platform" == 'iPhoneOS' ]] || fail "Unexpected platform: $platform"
           [[ -f "$app/$executable" ]] || fail 'Missing app executable'
-          xcrun lipo -verify_arch arm64 "$app/$executable"
+          xcrun lipo "$app/$executable" -verify_arch arm64 || fail 'App executable is missing arm64'
 
           mkdir -p dist
           staging=$(mktemp -d)

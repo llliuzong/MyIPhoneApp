@@ -1,10 +1,10 @@
 # LongWay
 
-这是一个原生 SwiftUI 通勤和待办工具，支持 iOS 16.0 及以上的 iPhone。Windows 上用 VS Code 编辑源代码，GitHub Actions 的标准 macOS Runner 使用 Xcode 编译，Windows 上再用 Sideloadly 签名并安装到自己的 iPhone。
+这是一个原生 SwiftUI 通勤、待办和运动工具，支持 iOS 16.0 及以上的 iPhone。Windows 上用 VS Code 编辑源代码，GitHub Actions 的标准 macOS Runner 使用 Xcode 编译，Windows 上再用 Sideloadly 签名并安装到自己的 iPhone。
 
 - 项目、Target、Scheme：`MyIPhoneApp`
 - 构建用 Bundle ID：`com.example.myiphoneapp`
-- 版本：`1.2.1`。CI 用 Actions 的运行编号作为 Build 编号。
+- 版本：`1.3.0`。CI 用 Actions 的运行编号作为 Build 编号。
 - 「通勤」页有「上班」和「回家」两个按钮。首次点按钮时填写目的地，以后长按对应按钮可以编辑。
 - 地点请填写 [高德坐标拾取器](https://lbs.amap.com/tools/picker) 获得的 GCJ-02 经纬度。地点存在手机设置中，不会上传到 GitHub，也不会写入日志。
 - 两个按钮分别打开 [高德 iOS 驾车导航](https://lbs.amap.com/api/amap-mobile/guide/ios/navi)，由高德使用手机当前位置作为起点。
@@ -22,6 +22,10 @@
 在底部切换到「待办」，点右上角加号新增。标题必填，优先级默认为 P1，备注选填。待处理按 P0（红）、P1（黄）、P2（绿）排序。同级中新建的待办在上方。点击项目正文编辑，点击左侧圆圈完成或恢复，向左滑动项目可以删除。
 
 已完成的项目归入灰色分区。待办数据保存在手机沙盒中，调试日志只记录新增、编辑、删除等操作的结果，不写入标题和备注。
+
+## 运动
+
+打开「运动 → 引体向上」，点「开始训练」计时。每组结束后输入次数并点「记一组」，画面会更新总次数和总组数。点「结束并保存」后，本次组数、次数及从开始到结束的总时长会保存到手机，并显示在训练记录中。切换页面或重开 App，可以继续尚未结束的训练。
 
 ## 1. 首次提交并触发构建
 

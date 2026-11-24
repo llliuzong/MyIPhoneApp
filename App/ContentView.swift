@@ -1,9 +1,11 @@
+import CoreLocation
 import SwiftUI
 
+@MainActor
 struct ContentView: View {
     let logger: AppLogger
+    @ObservedObject var tracker: CommuteTracker
     @Environment(\.openURL) private var openURL
-    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("commute.work") private var workCoordinates = ""
     @AppStorage("commute.home") private var homeCoordinates = ""
     @State private var editing: Destination?
@@ -18,6 +20,11 @@ struct ContentView: View {
                     Text("长按按钮可编辑地点")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                    if let status = tracker.statusText {
+                        Text(status)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .padding()
             }
@@ -38,14 +45,6 @@ struct ContentView: View {
             Button("好", role: .cancel) {}
         } message: {
             Text("请确认 iPhone 已安装高德地图，然后再试一次。")
-        }
-        .onChange(of: scenePhase) { phase in
-            switch phase {
-            case .active: logger.record("应用进入前台")
-            case .background: logger.record("应用进入后台")
-            case .inactive: break
-            @unknown default: break
-            }
         }
     }
 
@@ -92,13 +91,17 @@ struct ContentView: View {
             showLaunchError = true
             return
         }
-        logger.record("请求打开高德驾车导航：\(destination.placeName)")
-        openURL(url) { accepted in
-            if accepted {
-                logger.record("系统接受高德导航跳转：\(destination.placeName)")
-            } else {
-                logger.record("系统无法打开高德导航：\(destination.placeName)", level: .error)
-                showLaunchError = true
+        let location = CLLocation(latitude: point.latitude, longitude: point.longitude)
+        tracker.begin(direction: destination.rawValue, destination: location) { sessionID in
+            logger.record("请求打开高德驾车导航：\(destination.placeName)")
+            openURL(url) { accepted in
+                if accepted {
+                    logger.record("系统接受高德导航跳转：\(destination.placeName)")
+                } else {
+                    tracker.navigationFailed(for: sessionID)
+                    logger.record("系统无法打开高德导航：\(destination.placeName)", level: .error)
+                    showLaunchError = true
+                }
             }
         }
     }

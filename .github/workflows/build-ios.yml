@@ -1,0 +1,88 @@
+name: Build iPhone IPA
+
+'on':
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Show macOS and Xcode versions
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcodebuild -version -sdk iphoneos
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen --version
+          xcodegen generate --spec project.yml
+          test -f MyIPhoneApp.xcodeproj/xcshareddata/xcschemes/MyIPhoneApp.xcscheme
+          xcodebuild -list -project MyIPhoneApp.xcodeproj
+
+      - name: Build Release for iPhone
+        run: |
+          xcodebuild build \
+            -project MyIPhoneApp.xcodeproj \
+            -scheme MyIPhoneApp \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            "CURRENT_PROJECT_VERSION=$GITHUB_RUN_NUMBER"
+
+      - name: Verify app and package unsigned IPA
+        run: |
+          fail() {
+            echo "::error::$1"
+            exit 1
+          }
+
+          app='build/Build/Products/Release-iphoneos/MyIPhoneApp.app'
+          ipa='dist/MyIPhoneApp-unsigned.ipa'
+          [[ -d "$app" && -f "$app/Info.plist" ]] || fail 'Missing Release-iphoneos app or Info.plist'
+          bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")
+          platform=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleSupportedPlatforms:0' "$app/Info.plist")
+          executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Info.plist")
+          [[ "$bundle_id" == 'com.example.myiphoneapp' ]] || fail "Unexpected bundle ID: $bundle_id"
+          [[ "$platform" == 'iPhoneOS' ]] || fail "Unexpected platform: $platform"
+          [[ -f "$app/$executable" ]] || fail 'Missing app executable'
+          xcrun lipo -verify_arch arm64 "$app/$executable"
+
+          mkdir -p dist
+          staging=$(mktemp -d)
+          mkdir -p "$staging/Payload"
+          ditto "$app" "$staging/Payload/MyIPhoneApp.app"
+          ditto -c -k --keepParent "$staging/Payload" "$ipa"
+
+          [[ -s "$ipa" ]] || fail 'IPA is missing or empty'
+          unzip -tq "$ipa"
+          entries=$(unzip -Z -1 "$ipa")
+          grep -Fx 'Payload/MyIPhoneApp.app/Info.plist' <<< "$entries" || fail 'Missing packaged Info.plist'
+          grep -Fx "Payload/MyIPhoneApp.app/$executable" <<< "$entries" || fail 'Missing packaged executable'
+          echo "Bundle ID: $bundle_id ($platform, arm64)"
+          du -h "$ipa"
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v7
+        with:
+          name: MyIPhoneApp-unsigned
+          path: dist/MyIPhoneApp-unsigned.ipa
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

@@ -1,0 +1,25 @@
+name: MyIPhoneApp
+options:
+  deploymentTarget:
+    iOS: '16.0'
+targets:
+  MyIPhoneApp:
+    type: application
+    platform: iOS
+    sources:
+      - App
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.myiphoneapp
+        GENERATE_INFOPLIST_FILE: 'YES'
+        INFOPLIST_KEY_CFBundleDisplayName: 我的第一个 iPhone App
+        INFOPLIST_KEY_UILaunchScreen_Generation: 'YES'
+        MARKETING_VERSION: '1.0.0'
+        CURRENT_PROJECT_VERSION: '1'
+        SWIFT_VERSION: '5.0'
+        TARGETED_DEVICE_FAMILY: '1'
+schemes:
+  MyIPhoneApp:
+    build:
+      targets:
+        MyIPhoneApp: all

@@ -2,6 +2,7 @@ import AVFoundation
 import Combine
 import Foundation
 import MediaPlayer
+import UIKit
 
 @MainActor
 final class CommuteAudioPlayer: ObservableObject {
@@ -23,6 +24,8 @@ final class CommuteAudioPlayer: ObservableObject {
     @Published private(set) var playbackError: String?
     @Published private(set) var loading: Set<CommuteListening> = []
     @Published private(set) var catalogErrors: [CommuteListening: String] = [:]
+    @Published private(set) var neteaseSignedIn = false
+    @Published private(set) var neteaseFavorites = false
     @Published private var catalogs: [CommuteListening: CatalogCache] = [:]
 
     private let defaults = UserDefaults.standard
@@ -36,6 +39,9 @@ final class CommuteAudioPlayer: ObservableObject {
     private var observers: Set<AnyCancellable> = []
     private var timeObserver: Any?
     private var remotes: [(MPRemoteCommand, Any)] = []
+    private var neteaseCookie: String?
+    private var neteaseCatalogID = UUID()
+    private var pendingPlayback: Task<Void, Never>?
 
     init(logger: AppLogger) {
         self.logger = logger
@@ -44,6 +50,9 @@ final class CommuteAudioPlayer: ObservableObject {
         homeMode = CommuteListening(rawValue: settings.string(forKey: "audio.home") ?? "") ?? .off
         clientID = settings.string(forKey: "audio.jamendoClientID") ?? ""
         progress = settings.dictionary(forKey: "audio.podcastProgress") as? [String: Double] ?? [:]
+        neteaseCookie = NeteaseAudioCatalog.savedCookie()
+        neteaseSignedIn = neteaseCookie != nil
+        neteaseFavorites = neteaseSignedIn && settings.bool(forKey: "audio.neteaseFavorites")
         for mode in [CommuteListening.podcast, .music] {
             if let data = defaults.data(forKey: cacheKey(mode)),
                let cache = try? JSONDecoder().decode(CatalogCache.self, from: data) {
@@ -78,6 +87,10 @@ final class CommuteAudioPlayer: ObservableObject {
 
     func refresh(_ mode: CommuteListening, force: Bool = false) async {
         guard mode != .off, !loading.contains(mode) else { return }
+        if mode == .netease {
+            await refreshNetease(force: force)
+            return
+        }
         if !force, let cache = catalogs[mode], Calendar.current.isDateInToday(cache.date) { return }
         let requestedClientID = clientID
         guard mode != .music || !requestedClientID.isEmpty else { return }
@@ -111,6 +124,14 @@ final class CommuteAudioPlayer: ObservableObject {
             resume()
             return
         }
+        if mode == .netease, items(for: mode).isEmpty {
+            prepareNeteaseCommute()
+            return
+        }
+        playCommuteItem(mode)
+    }
+
+    private func playCommuteItem(_ mode: CommuteListening) {
         let items = items(for: mode)
         let first: CommuteAudioItem?
         if mode == .podcast {
@@ -142,10 +163,14 @@ final class CommuteAudioPlayer: ObservableObject {
     }
 
     func toggle() {
-        if isPlaying { pause() } else { resume() }
+        if isPlaying || pendingPlayback != nil { pause() } else if player.currentItem == nil, let nowPlaying {
+            play(nowPlaying)
+        } else { resume() }
     }
 
     func pause() {
+        pendingPlayback?.cancel()
+        pendingPlayback = nil
         player.pause()
         isPlaying = false
         saveProgress()
@@ -181,11 +206,36 @@ final class CommuteAudioPlayer: ObservableObject {
 
     private func startCurrent() {
         guard queue.indices.contains(index) else { return }
+        pendingPlayback?.cancel()
+        pendingPlayback = nil
         let item = queue[index]
         playbackError = nil
         elapsed = item.kind == .podcast ? max(0, progress[item.id] ?? 0) : 0
         nowPlaying = item
-        let asset = AVPlayerItem(url: item.stream)
+        if item.kind == .netease, let expiry = item.expiresAt, expiry <= .now {
+            player.pause()
+            player.replaceCurrentItem(with: nil)
+            let cookie = neteaseCookie
+            pendingPlayback = Task {
+                await withPlaybackTime {
+                    do {
+                        let url = try await NeteaseAudioCatalog.stream(for: item, cookie: cookie)
+                        try Task.checkCancellation()
+                        pendingPlayback = nil
+                        startPlayback(item, url: url)
+                    } catch {
+                        guard !Task.isCancelled else { return }
+                        reportPlaybackFailure("网易云暂时无法播放该曲目，请刷新歌单或选择其他歌曲。")
+                    }
+                }
+            }
+        } else {
+            startPlayback(item, url: item.stream)
+        }
+    }
+
+    private func startPlayback(_ item: CommuteAudioItem, url: URL) {
+        let asset = AVPlayerItem(url: url)
         itemObservation = asset.observe(\.status, options: [.new]) { [weak self] observed, _ in
             guard observed.status == .failed else { return }
             Task { @MainActor in
@@ -211,6 +261,8 @@ final class CommuteAudioPlayer: ObservableObject {
     }
 
     private func stop() {
+        pendingPlayback?.cancel()
+        pendingPlayback = nil
         itemObservation = nil
         player.pause()
         player.replaceCurrentItem(with: nil)
@@ -221,9 +273,9 @@ final class CommuteAudioPlayer: ObservableObject {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
-    private func reportPlaybackFailure() {
+    private func reportPlaybackFailure(_ message: String = "音频无法播放，请重试或选择其他内容。") {
         stop()
-        playbackError = "音频无法播放，请重试或选择其他内容。"
+        playbackError = message
         logger.record("通勤音频播放失败", level: .error)
     }
 
@@ -302,4 +354,91 @@ final class CommuteAudioPlayer: ObservableObject {
     }
 
     private func cacheKey(_ mode: CommuteListening) -> String { "audio.catalog." + mode.rawValue }
+
+    func authorizeNetease(_ cookie: String) throws {
+        try NeteaseAudioCatalog.saveCookie(cookie)
+        neteaseCookie = cookie
+        neteaseSignedIn = true
+        setNeteaseFavorites(true)
+        logger.record("网易云账号已登录")
+    }
+
+    func forgetNetease() throws {
+        try NeteaseAudioCatalog.forgetCookie()
+        neteaseCookie = nil
+        neteaseSignedIn = false
+        setNeteaseFavorites(false)
+        logger.record("网易云本机登录已清除")
+    }
+
+    func setNeteaseFavorites(_ value: Bool) {
+        neteaseFavorites = value && neteaseSignedIn
+        defaults.set(neteaseFavorites, forKey: "audio.neteaseFavorites")
+        neteaseCatalogID = UUID()
+        catalogs[.netease] = nil
+        catalogErrors[.netease] = nil
+        loading.remove(.netease)
+        if nowPlaying?.kind == .netease || pendingPlayback != nil { stop() }
+        if queue.first?.kind == .netease { queue = [] }
+    }
+
+    private func refreshNetease(force: Bool) async {
+        if !force, let cache = catalogs[.netease],
+           Calendar.current.isDateInToday(cache.date),
+           cache.items.contains(where: { ($0.expiresAt ?? .distantPast) > .now }) { return }
+        let requestID = neteaseCatalogID
+        loading.insert(.netease)
+        catalogErrors[.netease] = nil
+        defer {
+            if requestID == neteaseCatalogID { loading.remove(.netease) }
+        }
+        do {
+            let tracks = try await NeteaseAudioCatalog.tracks(cookie: neteaseCookie, favorites: neteaseFavorites)
+            try Task.checkCancellation()
+            guard requestID == neteaseCatalogID else { return }
+            catalogs[.netease] = CatalogCache(date: .now, items: tracks)
+            logger.record("网易云目录已更新，\(tracks.count) 首可播")
+        } catch {
+            guard !Task.isCancelled, requestID == neteaseCatalogID else { return }
+            switch error {
+            case NeteaseAudioCatalog.Failure.signedOut:
+                catalogs[.netease] = nil
+                catalogErrors[.netease] = "网易云登录已失效，请退出后重新扫码。"
+            default:
+                catalogErrors[.netease] = "网易云歌单更新失败，请稍后重试。"
+            }
+            logger.record("网易云目录更新失败", level: .error)
+        }
+    }
+
+    private func prepareNeteaseCommute() {
+        pendingPlayback?.cancel()
+        pendingPlayback = Task {
+            await withPlaybackTime {
+                if loading.contains(.netease) {
+                    for _ in 0..<16 {
+                        try? await Task.sleep(for: .milliseconds(500))
+                        guard !Task.isCancelled else { return }
+                        if !loading.contains(.netease) { break }
+                    }
+                } else {
+                    await refresh(.netease)
+                }
+                guard !Task.isCancelled else { return }
+                pendingPlayback = nil
+                playCommuteItem(.netease)
+            }
+        }
+    }
+
+    private func withPlaybackTime(_ operation: () async -> Void) async {
+        let backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "通勤音频准备") { [weak self] in
+            self?.pendingPlayback?.cancel()
+            self?.pendingPlayback = nil
+        }
+        defer {
+            if backgroundTask != .invalid { UIApplication.shared.endBackgroundTask(backgroundTask) }
+        }
+        await operation()
+    }
 }

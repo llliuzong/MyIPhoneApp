@@ -6,6 +6,8 @@ struct CommuteAudioView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var browse: CommuteListening = .podcast
     @State private var draftClientID = ""
+    @State private var showNeteaseSignIn = false
+    @State private var neteaseAccountError: String?
 
     var body: some View {
         NavigationStack {
@@ -23,7 +25,7 @@ struct CommuteAudioView: View {
                         }
                         .buttonStyle(.borderless)
                         if let source = item.source {
-                            Link(item.kind == .music ? "在 Jamendo 查看" : "查看节目来源", destination: source)
+                            Link("查看来源", destination: source)
                         }
                     }
                 }
@@ -40,6 +42,7 @@ struct CommuteAudioView: View {
                     Picker("内容类型", selection: $browse) {
                         Text("播客").tag(CommuteListening.podcast)
                         Text("音乐").tag(CommuteListening.music)
+                        Text("网易云").tag(CommuteListening.netease)
                     }
                     .pickerStyle(.segmented)
                 }
@@ -62,11 +65,39 @@ struct CommuteAudioView: View {
                     }
                 }
 
-                Section(browse == .music ? "Jamendo 热门音乐" : "津津乐道 · 最新节目") {
+                if browse == .netease {
+                    Section("网易云账号") {
+                        if audio.neteaseSignedIn {
+                            Picker("歌单", selection: Binding(get: { audio.neteaseFavorites }, set: { value in
+                                audio.setNeteaseFavorites(value)
+                                Task { await audio.refresh(.netease) }
+                            })) {
+                                Text("热歌榜").tag(false)
+                                Text("红心歌曲").tag(true)
+                            }
+                            Button("退出本机登录", role: .destructive) {
+                                do {
+                                    try audio.forgetNetease()
+                                    neteaseAccountError = nil
+                                    Task { await audio.refresh(.netease) }
+                                } catch {
+                                    neteaseAccountError = "退出失败，请重试。"
+                                }
+                            }
+                        } else {
+                            Button("扫码登录，读取红心歌曲") { showNeteaseSignIn = true }
+                        }
+                        if let neteaseAccountError { Text(neteaseAccountError).foregroundStyle(.secondary) }
+                    }
+                }
+
+                Section(catalogTitle) {
                     if audio.loading.contains(browse) {
                         ProgressView("正在更新")
                     } else if let error = audio.catalogErrors[browse] {
                         Text(error).foregroundStyle(.secondary)
+                    } else if browse == .netease, audio.items(for: browse).isEmpty {
+                        Text("暂时没有完整可播放的曲目。").foregroundStyle(.secondary)
                     }
                     ForEach(audio.items(for: browse)) { item in
                         Button {
@@ -98,9 +129,20 @@ struct CommuteAudioView: View {
                 ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
             }
             .task(id: browse) { await audio.refresh(browse) }
+            .sheet(isPresented: $showNeteaseSignIn, onDismiss: { Task { await audio.refresh(.netease) } }) {
+                NeteaseSignInView(audio: audio)
+            }
             .onAppear { draftClientID = audio.clientID }
             .onChange(of: audio.workMode) { mode in Task { await audio.refresh(mode) } }
             .onChange(of: audio.homeMode) { mode in Task { await audio.refresh(mode) } }
+        }
+    }
+
+    private var catalogTitle: String {
+        switch browse {
+        case .off, .podcast: "津津乐道 · 最新节目"
+        case .music: "Jamendo 热门音乐"
+        case .netease: audio.neteaseFavorites ? "我的红心歌曲" : "网易云热歌榜"
         }
     }
 

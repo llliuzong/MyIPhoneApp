@@ -1,7 +1,7 @@
 import Foundation
 
 enum CommuteListening: String, CaseIterable, Identifiable, Codable {
-    case off, music, podcast
+    case off, music, podcast, netease
 
     var id: Self { self }
 
@@ -10,6 +10,7 @@ enum CommuteListening: String, CaseIterable, Identifiable, Codable {
         case .off: "关闭"
         case .music: "音乐"
         case .podcast: "播客"
+        case .netease: "网易云"
         }
     }
 }
@@ -21,6 +22,7 @@ struct CommuteAudioItem: Identifiable, Codable {
     let author: String
     let stream: URL
     let source: URL?
+    var expiresAt: Date? = nil
 }
 
 enum CommuteAudioCatalog {

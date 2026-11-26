@@ -1,6 +1,6 @@
 # LongWay 更新日志
 
-## 1.5.1
+## 1.5.1 · Build 9
 
 ### 修复
 
@@ -14,6 +14,7 @@
 ### 验证
 
 - 从 iPhone 导出的 Build 8 日志显示热歌榜已正常加载。复测同一登录接口，在手机确认后收到网易云 `8821` 安全校验状态。
+- GitHub Actions 已生成并校验未签名 arm64 IPA，本地复查了压缩包和版本号。见 [构建记录](https://github.com/llliuzong/MyIPhoneApp/actions/runs/45746315749)。
 - 网易云拦截的会话仍无法读取红心歌曲。新提示和前后台切换待 iPhone 真机复测。
 
 ## 1.5.0 · Build 8

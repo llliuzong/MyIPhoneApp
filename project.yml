@@ -2,17 +2,32 @@ name: MyIPhoneApp
 options:
   deploymentTarget:
     iOS: '16.0'
+settings:
+  base:
+    MARKETING_VERSION: '1.6.0'
+    CURRENT_PROJECT_VERSION: '1'
+    SWIFT_VERSION: '5.0'
+    TARGETED_DEVICE_FAMILY: '1'
 targets:
   MyIPhoneApp:
     type: application
     platform: iOS
     sources:
       - App
+      - Shared
+    dependencies:
+      - target: CommuteActivityWidget
+        embed: true
     info:
       path: AppInfo.plist
       properties:
         CFBundleDisplayName: LongWay
         UIFileSharingEnabled: true
+        NSSupportsLiveActivities: true
+        CFBundleURLTypes:
+          - CFBundleURLName: com.example.myiphoneapp.commute
+            CFBundleURLSchemes:
+              - longway
         UIBackgroundModes:
           - location
           - audio
@@ -23,10 +38,24 @@ targets:
         GENERATE_INFOPLIST_FILE: 'YES'
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_UILaunchScreen_Generation: 'YES'
-        MARKETING_VERSION: '1.5.2'
-        CURRENT_PROJECT_VERSION: '1'
-        SWIFT_VERSION: '5.0'
-        TARGETED_DEVICE_FAMILY: '1'
+  CommuteActivityWidget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: '16.1'
+    sources:
+      - Widgets
+      - Shared
+    info:
+      path: CommuteActivityWidgetInfo.plist
+      properties:
+        CFBundleDisplayName: LongWay
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.myiphoneapp.CommuteActivityWidget
+        APPLICATION_EXTENSION_API_ONLY: 'YES'
+        SKIP_INSTALL: 'YES'
 schemes:
   MyIPhoneApp:
     build:

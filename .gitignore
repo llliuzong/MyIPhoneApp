@@ -2,6 +2,7 @@
 Thumbs.db
 *.xcodeproj/
 /AppInfo.plist
+/CommuteActivityWidgetInfo.plist
 *.xcworkspace/
 xcuserdata/
 DerivedData/

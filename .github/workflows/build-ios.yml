@@ -66,6 +66,17 @@ jobs:
           [[ -f "$app/$executable" ]] || fail 'Missing app executable'
           xcrun lipo "$app/$executable" -verify_arch arm64 || fail 'App executable is missing arm64'
 
+          widget="$app/PlugIns/CommuteActivityWidget.appex"
+          [[ -f "$widget/Info.plist" && -f "$widget/Assets.car" ]] || fail 'Missing commute widget or icon assets'
+          activities=$(/usr/libexec/PlistBuddy -c 'Print :NSSupportsLiveActivities' "$app/Info.plist")
+          widget_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$widget/Info.plist")
+          widget_type=$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$widget/Info.plist")
+          widget_executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$widget/Info.plist")
+          [[ "$activities" == 'true' ]] || fail 'Live Activities are disabled'
+          [[ "$widget_id" == "$bundle_id.CommuteActivityWidget" ]] || fail 'Unexpected commute widget bundle ID'
+          [[ "$widget_type" == 'com.apple.widgetkit-extension' ]] || fail 'Unexpected commute widget extension point'
+          xcrun lipo "$widget/$widget_executable" -verify_arch arm64 || fail 'Commute widget executable is missing arm64'
+
           mkdir -p dist
           staging=$(mktemp -d)
           mkdir -p "$staging/Payload"
@@ -77,6 +88,7 @@ jobs:
           entries=$(unzip -Z -1 "$ipa")
           grep -Fx 'Payload/MyIPhoneApp.app/Info.plist' <<< "$entries" || fail 'Missing packaged Info.plist'
           grep -Fx "Payload/MyIPhoneApp.app/$executable" <<< "$entries" || fail 'Missing packaged executable'
+          grep -Fx 'Payload/MyIPhoneApp.app/PlugIns/CommuteActivityWidget.appex/Assets.car' <<< "$entries" || fail 'Missing packaged commute widget assets'
           echo "Bundle ID: $bundle_id ($platform, arm64)"
           du -h "$ipa"
 

@@ -38,6 +38,7 @@ final class CommuteTracker: NSObject, ObservableObject, CLLocationManagerDelegat
     }
 
     private let logger: AppLogger
+    private let liveActivity: CommuteLiveActivity
     private let manager = CLLocationManager()
     private let store = CommuteTripStore()
     private var pending: Pending?
@@ -46,6 +47,7 @@ final class CommuteTracker: NSObject, ObservableObject, CLLocationManagerDelegat
 
     init(logger: AppLogger) {
         self.logger = logger
+        self.liveActivity = CommuteLiveActivity(logger: logger)
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
@@ -146,6 +148,7 @@ final class CommuteTracker: NSObject, ObservableObject, CLLocationManagerDelegat
         watchdog = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.checkLimits() }
         }
+        liveActivity.start(direction: pending.session.direction)
         pending.openNavigation(pending.session.id)
     }
 
@@ -188,8 +191,9 @@ final class CommuteTracker: NSObject, ObservableObject, CLLocationManagerDelegat
         if let arrival = confirmArrival(location, point: point, session: &active) {
             trip.arrive(at: arrival)
             let saved = save(trip)
-            stop()
             let seconds = Int(trip.durationSeconds ?? 0)
+            liveActivity.finish(arrivalSeconds: seconds)
+            stop()
             statusText = saved ? durationText(trip, prefix: "本次") : "已到达，行程保存失败"
             logger.record("已确认到达，通勤用时 \(seconds) 秒")
             return
@@ -214,6 +218,7 @@ final class CommuteTracker: NSObject, ObservableObject, CLLocationManagerDelegat
         active.trip = trip
         save(trip)
         statusText = "正在记录通勤"
+        liveActivity.depart(at: first.time)
         logger.record("已确认出发，开始计时")
     }
 
@@ -253,6 +258,7 @@ final class CommuteTracker: NSObject, ObservableObject, CLLocationManagerDelegat
             trip.interrupt(at: active.lastValidAt)
             saved = save(trip)
         }
+        liveActivity.finish()
         stop()
         statusText = saved ? message : "通勤记录中断，行程保存失败"
         logger.record(message)

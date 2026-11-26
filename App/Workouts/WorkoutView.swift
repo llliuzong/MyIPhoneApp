@@ -35,10 +35,9 @@ struct WorkoutView: View {
 @MainActor
 private struct PullUpSessionView: View {
     @ObservedObject var store: PullUpStore
-    @State private var repsInput = ""
+    @State private var repsInput = 0
     @State private var operationError = ""
     @State private var showOperationError = false
-    @FocusState private var isEntryFocused: Bool
 
     var body: some View {
         Form {
@@ -63,13 +62,9 @@ private struct PullUpSessionView: View {
         }
     }
 
-    private var input: String {
-        repsInput.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     private var enteredReps: Int? {
-        guard let reps = Int(input), reps > 0 else { return nil }
-        return reps
+        guard repsInput > 0 else { return nil }
+        return repsInput
     }
 
     @ViewBuilder
@@ -81,10 +76,7 @@ private struct PullUpSessionView: View {
         }
 
         Section("录入第 \(workout.totalSets + 1) 组") {
-            TextField("输入本组次数", text: $repsInput)
-                .keyboardType(.numberPad)
-                .focused($isEntryFocused)
-                .accessibilityLabel("本组次数")
+            RollingCounterField(value: $repsInput)
             Button("记一组") {
                 guard let reps = enteredReps else { return }
                 perform {
@@ -110,7 +102,7 @@ private struct PullUpSessionView: View {
                     clearEntry()
                 }
             }
-            .disabled(input.isEmpty ? workout.totalSets == 0 : enteredReps == nil)
+            .disabled(enteredReps == nil && workout.totalSets == 0)
 
             if workout.totalSets == 0 {
                 Button("取消训练", role: .destructive) {
@@ -178,8 +170,7 @@ private struct PullUpSessionView: View {
     }
 
     private func clearEntry() {
-        repsInput = ""
-        isEntryFocused = false
+        repsInput = 0
     }
 
     private func perform(_ action: () throws -> Void) {
@@ -189,5 +180,131 @@ private struct PullUpSessionView: View {
             operationError = error.localizedDescription
             showOperationError = true
         }
+    }
+}
+
+@MainActor
+private struct RollingCounterField: View {
+    @Binding var value: Int
+    @State private var direction = 1
+    @State private var lastDragStep = 0
+
+    private var digits: [Character] { Array(value.formatted()) }
+
+    var body: some View {
+        HStack(spacing: 22) {
+            RepeatingCounterButton(symbol: "minus", label: "减少次数", isDisabled: value == 0) {
+                direction = -1
+                value = max(0, value - 1)
+            }
+
+            VStack(spacing: 5) {
+                HStack(spacing: 1) {
+                    ForEach(Array(digits.enumerated()), id: \.offset) { index, digit in
+                        Text(String(digit))
+                            .font(.system(size: 48, weight: .semibold, design: .rounded).monospacedDigit())
+                            .id("\(index)-\(digit)")
+                            .transition(.asymmetric(
+                                insertion: .offset(y: direction > 0 ? 30 : -30).combined(with: .opacity),
+                                removal: .offset(y: direction > 0 ? -30 : 30).combined(with: .opacity)
+                            ))
+                    }
+                }
+                .frame(minWidth: 100, minHeight: 58)
+                .clipped()
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 8)
+                        .onChanged { gesture in
+                            let step = Int((-gesture.translation.height / 32).rounded(.towardZero))
+                            let delta = step - lastDragStep
+                            guard delta != 0 else { return }
+                            direction = delta > 0 ? 1 : -1
+                            value = max(0, value + delta)
+                            lastDragStep = step
+                        }
+                        .onEnded { gesture in
+                            let predicted = Int((-gesture.predictedEndTranslation.height / 32).rounded(.towardZero))
+                            let flickDelta = max(-8, min(8, predicted - lastDragStep))
+                            if flickDelta != 0 {
+                                direction = flickDelta > 0 ? 1 : -1
+                                value = max(0, value + flickDelta)
+                            }
+                            lastDragStep = 0
+                        }
+                )
+                Text("次")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("本组引体向上次数")
+            .accessibilityValue("\(value) 次")
+            .accessibilityAdjustableAction { adjustment in
+                switch adjustment {
+                case .increment:
+                    direction = 1
+                    value += 1
+                case .decrement:
+                    direction = -1
+                    value = max(0, value - 1)
+                @unknown default:
+                    break
+                }
+            }
+
+            RepeatingCounterButton(symbol: "plus", label: "增加次数") {
+                direction = 1
+                value += 1
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .animation(.spring(response: 0.32, dampingFraction: 0.78), value: value)
+    }
+}
+
+@MainActor
+private struct RepeatingCounterButton: View {
+    let symbol: String
+    let label: String
+    var isDisabled = false
+    let action: () -> Void
+
+    @State private var holdTask: Task<Void, Never>?
+    @State private var isHolding = false
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundStyle(isDisabled ? Color.secondary : Color.accentColor)
+            .frame(width: 48, height: 48)
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: Circle())
+            .contentShape(Circle())
+            .accessibilityLabel(label)
+            .accessibilityAddTraits(.isButton)
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        guard !isHolding, !isDisabled else { return }
+                        isHolding = true
+                        action()
+                        holdTask = Task {
+                            try? await Task.sleep(nanoseconds: 380_000_000)
+                            while !Task.isCancelled {
+                                action()
+                                try? await Task.sleep(nanoseconds: 110_000_000)
+                            }
+                        }
+                    }
+                    .onEnded { _ in
+                        isHolding = false
+                        holdTask?.cancel()
+                        holdTask = nil
+                    }
+            )
+            .onDisappear {
+                holdTask?.cancel()
+            }
     }
 }

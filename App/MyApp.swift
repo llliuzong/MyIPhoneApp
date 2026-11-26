@@ -15,10 +15,15 @@ struct MyApp: App {
 private struct AppTabs: View {
     let logger: AppLogger
     @Environment(\.scenePhase) private var scenePhase
+    @State private var selectedTab = Tab.commute
     @StateObject private var tracker: CommuteTracker
     @StateObject private var todos: TodoStore
     @StateObject private var workouts: PullUpStore
     @StateObject private var audio: CommuteAudioPlayer
+
+    private enum Tab: Hashable {
+        case commute, todos, workouts
+    }
 
     init(logger: AppLogger) {
         self.logger = logger
@@ -29,13 +34,19 @@ private struct AppTabs: View {
     }
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             ContentView(logger: logger, tracker: tracker, audio: audio)
                 .tabItem { Label("通勤", systemImage: "car") }
+                .tag(Tab.commute)
             TodoView(store: todos)
                 .tabItem { Label("待办", systemImage: "checklist") }
+                .tag(Tab.todos)
             WorkoutView(store: workouts)
                 .tabItem { Label("运动", systemImage: "figure.strengthtraining.traditional") }
+                .tag(Tab.workouts)
+        }
+        .onOpenURL { url in
+            if url.scheme == "longway", url.host == "commute" { selectedTab = .commute }
         }
         .onChange(of: scenePhase) { phase in
             switch phase {

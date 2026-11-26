@@ -4,7 +4,7 @@
 
 - 项目、Target、Scheme：`MyIPhoneApp`
 - 构建用 Bundle ID：`com.example.myiphoneapp`
-- 版本为 `1.5.2`。CI 用 Actions 的运行编号作为 Build 编号。每个 IPA 的改动见 [更新日志](CHANGELOG.md)。
+- CI 用 Actions 的运行编号作为 Build 编号。版本与每个 IPA 的改动见 [更新日志](CHANGELOG.md)。
 - 「通勤」页有「上班」和「回家」两个按钮。首次点按钮时填写目的地，以后长按对应按钮可以编辑。
 - 地点请填写 [高德坐标拾取器](https://lbs.amap.com/tools/picker) 获得的 GCJ-02 经纬度。地点存在手机设置中，不会上传到 GitHub，也不会写入日志。
 - 两个按钮分别打开 [高德 iOS 驾车导航](https://lbs.amap.com/api/amap-mobile/guide/ios/navi)，由高德使用手机当前位置作为起点。
@@ -16,6 +16,8 @@
 普通轨迹点至少间隔 30 秒，出发和到达点单独记录。iOS 决定何时提供新定位。若手机没有给出可靠的定位，App 不补造轨迹点。用于到达判定的坐标会在手机上近似转换为高德坐标。现场准确度需要真机试跑确认。
 
 行程摘要和轨迹一起保存到沙盒的 `Application Support/CommuteTrips/`，每次行程一份 JSON。App 冷启动继续显示上次结果。如果上次已开始计时但没有完成，按最后保存的定位将它标记为中断。调试日志仍按冷启动重置，不包含任何轨迹坐标。
+
+在 iOS 16.1 及以上，允许实时活动并开启精确定位后，通勤按同一套定位状态更新灵动岛和锁屏。灵动岛显示 LongWay 图标以及等待状态或已用时间。完成后锁屏最多保留一分钟的行程结果。无灵动岛的机型可在锁屏查看。
 
 ## 待办
 

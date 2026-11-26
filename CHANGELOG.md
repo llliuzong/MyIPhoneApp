@@ -1,6 +1,6 @@
 # LongWay 更新日志
 
-## 1.5.0
+## 1.5.0 · Build 8
 
 ### 新增
 
@@ -14,7 +14,8 @@
 
 ### 验证
 
-- 已在 Windows 验证公开热歌榜读取、可播曲目筛选、MP3 分段请求和登录二维码的待扫码状态。
+- 已在 Windows 读取公开热歌榜的 24 首曲目，其中 14 首返回完整播放地址。已验证播放地址刷新、HTTPS MP3 分段请求和登录二维码的待扫码状态。
+- GitHub Actions 已生成并校验未签名 arm64 IPA，本地复查了压缩包和版本号。见 [构建记录](https://github.com/llliuzong/MyIPhoneApp/actions/runs/45738365436)。
 - 待在 iPhone 上验证扫码确认、红心歌曲播放以及切到高德后继续播放。
 
 ## 1.4.0 · Build 7

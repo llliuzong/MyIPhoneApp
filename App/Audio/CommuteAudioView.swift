@@ -2,11 +2,16 @@ import SwiftUI
 
 @MainActor
 struct CommuteAudioView: View {
+    private enum NeteaseLogin: String, Identifiable {
+        case web, qr
+        var id: Self { self }
+    }
+
     @ObservedObject var audio: CommuteAudioPlayer
     @Environment(\.dismiss) private var dismiss
     @State private var browse: CommuteListening = .podcast
     @State private var draftClientID = ""
-    @State private var showNeteaseSignIn = false
+    @State private var neteaseLogin: NeteaseLogin?
     @State private var neteaseAccountError: String?
 
     var body: some View {
@@ -85,7 +90,8 @@ struct CommuteAudioView: View {
                                 }
                             }
                         } else {
-                            Button("扫码登录，读取红心歌曲") { showNeteaseSignIn = true }
+                            Button("网易云网页登录") { neteaseLogin = .web }
+                            Button("扫码登录") { neteaseLogin = .qr }
                         }
                         if let neteaseAccountError { Text(neteaseAccountError).foregroundStyle(.secondary) }
                     }
@@ -129,8 +135,11 @@ struct CommuteAudioView: View {
                 ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
             }
             .task(id: browse) { await audio.refresh(browse) }
-            .sheet(isPresented: $showNeteaseSignIn, onDismiss: { Task { await audio.refresh(.netease) } }) {
-                NeteaseSignInView(audio: audio)
+            .sheet(item: $neteaseLogin, onDismiss: { Task { await audio.refresh(.netease) } }) { login in
+                switch login {
+                case .web: NeteaseWebSignInView(audio: audio)
+                case .qr: NeteaseSignInView(audio: audio)
+                }
             }
             .onAppear { draftClientID = audio.clientID }
             .onChange(of: audio.workMode) { mode in Task { await audio.refresh(mode) } }

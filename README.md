@@ -4,7 +4,7 @@
 
 - 项目、Target、Scheme：`MyIPhoneApp`
 - 构建用 Bundle ID：`com.example.myiphoneapp`
-- 版本为 `1.5.1`。CI 用 Actions 的运行编号作为 Build 编号。每个 IPA 的改动见 [更新日志](CHANGELOG.md)。
+- 版本为 `1.5.2`。CI 用 Actions 的运行编号作为 Build 编号。每个 IPA 的改动见 [更新日志](CHANGELOG.md)。
 - 「通勤」页有「上班」和「回家」两个按钮。首次点按钮时填写目的地，以后长按对应按钮可以编辑。
 - 地点请填写 [高德坐标拾取器](https://lbs.amap.com/tools/picker) 获得的 GCJ-02 经纬度。地点存在手机设置中，不会上传到 GitHub，也不会写入日志。
 - 两个按钮分别打开 [高德 iOS 驾车导航](https://lbs.amap.com/api/amap-mobile/guide/ios/navi)，由高德使用手机当前位置作为起点。
@@ -29,7 +29,8 @@
 
 - 播客取自 [津津乐道的公开 RSS](https://dao.fm/listening-guide)，可以直接收听。
 - 音乐使用 [Jamendo 的热度榜单](https://developer.jamendo.com/v3.0/tracks)。填一次 Jamendo Client ID 后启用音乐，不需要导入音频文件。
-- 网易云可免登录收听热歌榜。需要读取红心歌曲时，在「网易云」页生成二维码，用网易云音乐扫码并确认。同一台 iPhone 可截图后，从网易云扫一扫的相册入口选图，确认后切回 LongWay。LongWay 使用社区客户端方式连接网易云，登录状态保存在本机钥匙串。若网易云返回安全验证错误，红心歌曲需要等登录成功后才能读取。官方个人开发者凭据可继续用于 [官方 CLI](https://developer.music.163.com/st/developer/document?docId=3b75ab8e475d41ca93d91ebd4dfd383f)。
+- 网易云可免登录收听热歌榜。要读取红心歌曲，在「网易云」页选择「网易云网页登录」，在官网完成登录及可能出现的安全验证，再点「登录完成，读取红心歌曲」。LongWay 验证红心歌曲访问后，把会话保存在本机钥匙串。
+- 也可以在「网易云」页生成二维码，用网易云音乐扫码并确认。同一台 iPhone 可截图后，从网易云扫一扫的相册入口选图，确认后切回 LongWay。若扫码返回 `8821`，可尝试网页登录。官方个人开发者凭据可继续用于 [官方 CLI](https://developer.music.163.com/st/developer/document?docId=3b75ab8e475d41ca93d91ebd4dfd383f)。
 - 开启自动播放的来源会在打开 App 时检查是否需要更新。网易云在播放地址过期时刷新，歌单和播放地址缓存在内存中。播放器只列出网易云返回完整音频地址的曲目。播放音频需要网络。没有可播内容时仍会打开高德。
 
 ## 运动

@@ -363,8 +363,8 @@ final class CommuteAudioPlayer: ObservableObject {
         logger.record("网易云账号已登录")
     }
 
-    func recordNeteaseSignIn(_ message: String, failed: Bool = false) {
-        logger.record("网易云扫码登录：\(message)", level: failed ? .error : .info)
+    func recordNeteaseSignIn(_ message: String, failed: Bool = false, method: String = "扫码") {
+        logger.record("网易云\(method)登录：\(message)", level: failed ? .error : .info)
     }
 
     func forgetNetease() throws {
@@ -405,9 +405,9 @@ final class CommuteAudioPlayer: ObservableObject {
         } catch {
             guard !Task.isCancelled, requestID == neteaseCatalogID else { return }
             switch error {
-            case NeteaseAudioCatalog.Failure.signedOut:
+            case NeteaseAudioCatalog.Failure.signedOut, NeteaseAudioCatalog.Failure.accountRejected(_):
                 catalogs[.netease] = nil
-                catalogErrors[.netease] = "网易云登录已失效，请退出后重新扫码。"
+                catalogErrors[.netease] = "网易云登录已失效，请退出后重新登录。"
             default:
                 catalogErrors[.netease] = "网易云歌单更新失败，请稍后重试。"
             }

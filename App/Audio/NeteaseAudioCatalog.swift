@@ -4,6 +4,7 @@ import Security
 enum NeteaseAudioCatalog {
     static let hotPlaylistID = 3778678
     private static let base = URL(string: "https://music.163.com")!
+    static let webSignInURL = base.appendingPathComponent("login")
     private static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieStorage = nil
@@ -77,12 +78,7 @@ enum NeteaseAudioCatalog {
     static func tracks(cookie: String?, favorites: Bool) async throws -> [CommuteAudioItem] {
         let tracks: [Track]
         if favorites, let cookie {
-            let (account, _) = try await request(Account.self, "nuser/account/get", cookie: cookie)
-            guard let user = account.account else { throw Failure.signedOut }
-            let (likes, _) = try await request(Likes.self, "song/like/get", fields: ["uid": String(user.id)], cookie: cookie)
-            if likes.code == 301 { throw Failure.signedOut }
-            guard likes.code == 200, let ids = likes.ids else { throw Failure.invalidResponse }
-            let selected = Array(ids.prefix(100))
+            let selected = Array(try await favoriteIDs(cookie: cookie).prefix(100))
             guard !selected.isEmpty else { return [] }
             let selection = try JSONEncoder().encode(selected.map { ["id": $0] })
             let (details, _) = try await request(Tracks.self, "v3/song/detail",
@@ -136,8 +132,36 @@ enum NeteaseAudioCatalog {
     }
 
     static func verifySignIn(_ cookie: String) async throws {
+        _ = try await accountID(cookie: cookie)
+    }
+
+    static func verifyWebSignIn(_ cookie: String) async throws -> Int {
+        try await favoriteIDs(cookie: cookie).count
+    }
+
+    private static func favoriteIDs(cookie: String) async throws -> [Int] {
+        let userID = try await accountID(cookie: cookie)
+        let (likes, _) = try await request(Likes.self, "song/like/get", fields: ["uid": String(userID)], cookie: cookie)
+        if likes.code == 301 { throw Failure.signedOut }
+        guard likes.code == 200, let ids = likes.ids else { throw Failure.invalidResponse }
+        return ids
+    }
+
+    private static func accountID(cookie: String) async throws -> Int {
         let (account, _) = try await request(Account.self, "nuser/account/get", cookie: cookie)
-        guard account.account != nil else { throw Failure.accountRejected(account.code) }
+        guard let user = account.account, user.id > 0 else { throw Failure.accountRejected(account.code) }
+        return user.id
+    }
+
+    static func webSessionCookie(from cookies: [HTTPCookie]) -> String? {
+        for domain in ["music.163.com", "163.com"] {
+            for cookie in cookies where cookie.name == "MUSIC_U" && cookie.path == "/" {
+                guard cookie.domain.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ".")) == domain,
+                      cookie.expiresDate.map({ $0 > .now }) ?? true else { continue }
+                if let session = sessionCookie(token: cookie.value) { return session }
+            }
+        }
+        return nil
     }
 
     private static func authorizationCookie(from response: HTTPURLResponse) -> String? {
@@ -151,12 +175,12 @@ enum NeteaseAudioCatalog {
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .first { $0.hasPrefix(prefix) }
             .map { String($0.dropFirst(prefix.count)) }
-        for token in [parsed, combined].compactMap({ $0 }) {
-            if !token.isEmpty, token.utf8.allSatisfy({ $0 > 32 && $0 < 127 && $0 != 44 && $0 != 59 }) {
-                return prefix + token
-            }
-        }
-        return nil
+        return parsed.flatMap(sessionCookie(token:)) ?? combined.flatMap(sessionCookie(token:))
+    }
+
+    private static func sessionCookie(token: String) -> String? {
+        guard !token.isEmpty, token.utf8.allSatisfy({ $0 > 32 && $0 < 127 && $0 != 44 && $0 != 59 }) else { return nil }
+        return "MUSIC_U=" + token
     }
 
     static func savedCookie() -> String? {

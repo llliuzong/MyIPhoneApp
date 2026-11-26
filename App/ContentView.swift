@@ -5,11 +5,13 @@ import SwiftUI
 struct ContentView: View {
     let logger: AppLogger
     @ObservedObject var tracker: CommuteTracker
+    @ObservedObject var audio: CommuteAudioPlayer
     @Environment(\.openURL) private var openURL
     @AppStorage("commute.work") private var workCoordinates = ""
     @AppStorage("commute.home") private var homeCoordinates = ""
     @State private var editing: Destination?
     @State private var showLaunchError = false
+    @State private var showAudio = false
 
     var body: some View {
         NavigationStack {
@@ -29,7 +31,18 @@ struct ContentView: View {
                 .padding()
             }
             .navigationTitle("通勤")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showAudio = true
+                    } label: {
+                        Image(systemName: "headphones")
+                    }
+                    .accessibilityLabel("通勤音频")
+                }
+            }
         }
+        .sheet(isPresented: $showAudio) { CommuteAudioView(audio: audio) }
         .sheet(item: $editing) { destination in
             DestinationEditor(destination: destination, coordinates: coordinates(for: destination)) { point in
                 switch destination {
@@ -93,6 +106,7 @@ struct ContentView: View {
         }
         let location = CLLocation(latitude: point.latitude, longitude: point.longitude)
         tracker.begin(direction: destination.rawValue, destination: location) { sessionID in
+            audio.playForCommute(toWork: destination == .work)
             logger.record("请求打开高德驾车导航：\(destination.placeName)")
             openURL(url) { accepted in
                 if accepted {

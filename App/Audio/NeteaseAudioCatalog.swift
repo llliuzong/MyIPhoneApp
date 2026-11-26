@@ -4,14 +4,21 @@ import Security
 enum NeteaseAudioCatalog {
     static let hotPlaylistID = 3778678
     private static let base = URL(string: "https://music.163.com")!
-    private static let session = URLSession(configuration: .ephemeral)
+    private static let session: URLSession = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        return URLSession(configuration: configuration)
+    }()
 
     enum Failure: Error {
-        case invalidResponse, signedOut, keychain(OSStatus), unavailable
+        case invalidResponse, http(Int), qrStatus(Int), missingSession, accountRejected(Int?)
+        case signedOut, keychain(OSStatus), unavailable
     }
 
     struct SignIn {
         let key: String
+        let expiresAt = Date.now.addingTimeInterval(180)
 
         var url: URL {
             var parts = URLComponents(url: base.appendingPathComponent("login"), resolvingAgainstBaseURL: false)!
@@ -40,6 +47,7 @@ enum NeteaseAudioCatalog {
 
     private struct Account: Decodable {
         struct User: Decodable { let id: Int }
+        let code: Int?
         let account: User?
     }
 
@@ -108,27 +116,47 @@ enum NeteaseAudioCatalog {
 
     static func startSignIn() async throws -> SignIn {
         let (response, _) = try await request(QRResponse.self, "login/qrcode/unikey", fields: ["type": "3"])
-        guard response.code == 200, let key = response.unikey, !key.isEmpty else { throw Failure.invalidResponse }
+        guard response.code == 200 else { throw Failure.qrStatus(response.code) }
+        guard let key = response.unikey, !key.isEmpty else { throw Failure.invalidResponse }
         return SignIn(key: key)
     }
 
     static func checkSignIn(_ signIn: SignIn) async throws -> SignInStatus {
-        let (response, cookies) = try await request(QRResponse.self, "login/qrcode/client/login",
+        let (response, http) = try await request(QRResponse.self, "login/qrcode/client/login",
             fields: ["type": "3", "key": signIn.key])
         switch response.code {
         case 800: return .expired
         case 801: return .waiting
         case 802: return .scanned
         case 803:
-            guard let token = cookies.first(where: { $0.name == "MUSIC_U" })?.value,
-                  !token.isEmpty,
-                  token.utf8.allSatisfy({ $0 > 32 && $0 < 127 && $0 != 59 }) else { throw Failure.invalidResponse }
-            let cookie = "MUSIC_U=" + token
-            let (account, _) = try await request(Account.self, "nuser/account/get", cookie: cookie)
-            guard account.account != nil else { throw Failure.signedOut }
+            guard let cookie = authorizationCookie(from: http) else { throw Failure.missingSession }
             return .authorized(cookie)
-        default: throw Failure.invalidResponse
+        default: throw Failure.qrStatus(response.code)
         }
+    }
+
+    static func verifySignIn(_ cookie: String) async throws {
+        let (account, _) = try await request(Account.self, "nuser/account/get", cookie: cookie)
+        guard account.account != nil else { throw Failure.accountRejected(account.code) }
+    }
+
+    private static func authorizationCookie(from response: HTTPURLResponse) -> String? {
+        guard let header = response.value(forHTTPHeaderField: "Set-Cookie") else { return nil }
+        let name = "MUSIC_U"
+        let parsed = HTTPCookie.cookies(withResponseHeaderFields: ["Set-Cookie": header], for: base)
+            .first(where: { $0.name == name })?.value
+        // Foundation can combine multiple Set-Cookie fields into a single header line.
+        let prefix = name + "="
+        let combined = header.split(whereSeparator: { $0 == "," || $0 == ";" })
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { $0.hasPrefix(prefix) }
+            .map { String($0.dropFirst(prefix.count)) }
+        for token in [parsed, combined].compactMap({ $0 }) {
+            if !token.isEmpty, token.utf8.allSatisfy({ $0 > 32 && $0 < 127 && $0 != 44 && $0 != 59 }) {
+                return prefix + token
+            }
+        }
+        return nil
     }
 
     static func savedCookie() -> String? {
@@ -185,7 +213,7 @@ enum NeteaseAudioCatalog {
     }
 
     private static func request<Response: Decodable>(_ type: Response.Type, _ path: String,
-        fields: [String: String] = [:], cookie: String? = nil) async throws -> (Response, [HTTPCookie]) {
+        fields: [String: String] = [:], cookie: String? = nil) async throws -> (Response, HTTPURLResponse) {
         var request = URLRequest(url: base.appendingPathComponent("api/" + path), timeoutInterval: 8)
         request.httpMethod = "POST"
         request.httpShouldHandleCookies = false
@@ -197,12 +225,9 @@ enum NeteaseAudioCatalog {
         form.queryItems = fields.map { URLQueryItem(name: $0.key, value: $0.value) }
         request.httpBody = form.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B").data(using: .utf8) ?? Data()
         let (data, response) = try await session.data(for: request, delegate: NoRedirects())
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200,
-              let responseURL = http.url, responseURL.host == base.host else { throw Failure.invalidResponse }
-        let headers = http.allHeaderFields.reduce(into: [String: String]()) { result, field in
-            if let name = field.key as? String, let value = field.value as? String { result[name] = value }
-        }
-        return (try JSONDecoder().decode(type, from: data), HTTPCookie.cookies(withResponseHeaderFields: headers, for: responseURL))
+        guard let http = response as? HTTPURLResponse, http.url?.host == base.host else { throw Failure.invalidResponse }
+        guard http.statusCode == 200 else { throw Failure.http(http.statusCode) }
+        return (try JSONDecoder().decode(type, from: data), http)
     }
 
     private final class NoRedirects: NSObject, URLSessionTaskDelegate {

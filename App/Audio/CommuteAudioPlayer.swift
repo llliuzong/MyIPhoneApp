@@ -363,6 +363,10 @@ final class CommuteAudioPlayer: ObservableObject {
         logger.record("网易云账号已登录")
     }
 
+    func recordNeteaseSignIn(_ message: String, failed: Bool = false) {
+        logger.record("网易云扫码登录：\(message)", level: failed ? .error : .info)
+    }
+
     func forgetNetease() throws {
         try NeteaseAudioCatalog.forgetCookie()
         neteaseCookie = nil

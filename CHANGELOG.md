@@ -1,5 +1,17 @@
 # LongWay 更新日志
 
+## 1.6.0 · Build 12
+
+### 优化
+
+- 根据 Bencho Rolling Counter 的源码算法重做引体向上次数输入：五位独立滚轮按位进位、个位先行并逐位错开弹簧、数字条边缘渐隐和运动模糊、按住加速/十位跳增、12 pt 拖动步长与松手惯性。适配系统减弱动态效果设置。
+- 按 SwiftUI 语义颜色映射 Bencho 的卡片、前景、表面、描边和字体 token；不引入 React、npm 或网页 CSS 依赖。
+
+### 验证
+
+- 待 GitHub Actions 编译和 IPA 检查完成后补录结果。
+- iPhone 真机尚未验证动画观感、触控手势和安装。
+
 ## 1.6.0 · Build 11
 
 ### 新增
@@ -10,7 +22,7 @@
 
 ### 验证
 
-- 待确认实际版本号与 GitHub Actions Build 编号后补录编译检查结果。
+- GitHub Actions macOS runner 的 Xcode Release 编译、arm64 架构检查、实时活动扩展检查及 IPA ZIP 完整性检查均通过；版本 1.6.0，Build 11。
 - iPhone 真机尚未验证滚轮动画、交互、灵动岛、切到高德后的计时、到达和签名安装。
 
 ## 1.5.2 · Build 10
